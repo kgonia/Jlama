@@ -24,6 +24,7 @@ import com.github.tjake.jlama.model.llama.LlamaModelType;
 import com.github.tjake.jlama.model.mistral.MistralModelType;
 import com.github.tjake.jlama.model.mixtral.MixtralModelType;
 import com.github.tjake.jlama.model.qwen2.Qwen2ModelType;
+import com.github.tjake.jlama.model.whisper.WhisperModelType; // Added import
 import com.github.tjake.jlama.safetensors.Config;
 import com.github.tjake.jlama.safetensors.DType;
 import com.github.tjake.jlama.safetensors.SafeTensorSupport;
@@ -60,6 +61,7 @@ public class ModelSupport {
         register("MISTRAL", new MistralModelType());
         register("MIXTRAL", new MixtralModelType());
         register("QWEN2", new Qwen2ModelType());
+        register("WHISPER", new WhisperModelType());
     }
 
     // Register a model type with a unique name

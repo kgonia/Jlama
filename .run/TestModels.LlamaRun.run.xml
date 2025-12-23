@@ -11,7 +11,6 @@
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
-    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <option name="ALTERNATIVE_JRE_PATH" value="graalvm-22" />
     <option name="PACKAGE_NAME" value="com.github.tjake.jlama.model" />
     <option name="MAIN_CLASS_NAME" value="com.github.tjake.jlama.model.TestModels" />

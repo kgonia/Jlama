@@ -98,6 +98,9 @@ public class Config {
             null,
             null,
             null,
+            null,
+            null,
+            null,
             null
         );
     }
@@ -133,6 +136,9 @@ public class Config {
             ropeScalingFactor,
             null,
             embeddingLength / numberOfHeads,
+            null,
+            null,
+            null,
             null,
             null,
             null,
@@ -182,7 +188,10 @@ public class Config {
             residualMultiplier,
             attentionMultiplier,
             embeddingMultiplier,
-            logitMultiplier
+            logitMultiplier,
+            null,
+            null,
+            null
         );
     }
 
@@ -223,9 +232,16 @@ public class Config {
             null,
             null,
             null,
+            null,
+            null,
+            null,
             null
         );
     }
+
+    public final int n_mels;
+    public final int max_source_positions;
+    public final boolean is_encoder_decoder;
 
     public Config(
         int contextLength,
@@ -248,7 +264,10 @@ public class Config {
         Float residualMultiplier,
         Float attentionMultiplier,
         Float embeddingMultiplier,
-        Float logitMultiplier
+        Float logitMultiplier,
+        Integer n_mels,
+        Integer max_source_positions,
+        Boolean is_encoder_decoder
     ) {
         this.contextLength = contextLength;
         this.attentionLength = numberOfHeads * headSize;
@@ -281,9 +300,39 @@ public class Config {
         this.attentionMultiplier = attentionMultiplier;
         this.embeddingMultiplier = embeddingMultiplier;
         this.logitMultiplier = logitMultiplier;
+        this.n_mels = n_mels == null ? 0 : n_mels;
+        this.max_source_positions = max_source_positions == null ? 0 : max_source_positions;
+        this.is_encoder_decoder = is_encoder_decoder != null && is_encoder_decoder;
+
 
         // Set default values
         this.dctx = DistributedContext.builder(this).build();
+    }
+
+    public Config(
+        int contextLength,
+        int embeddingLength,
+        int hiddenLength,
+        int numberOfHeads,
+        int numberOfKeyValueHeads,
+        int numberOfLayers,
+        float layerNormEps,
+        int vocabularySize,
+        int bosToken,
+        List<Integer> eosTokens,
+        ActivationFunction.Type activationFunction,
+        Double ropeFreqsTheta,
+        Double ropeScalingFactor,
+        Map<String, Integer> classifcationLabels,
+        Integer headSize,
+        Float finalLogitSoftCapping,
+        Float attnLogitSoftCapping,
+        Float residualMultiplier,
+        Float attentionMultiplier,
+        Float embeddingMultiplier,
+        Float logitMultiplier
+    ) {
+        this(contextLength, embeddingLength, hiddenLength, numberOfHeads, numberOfKeyValueHeads, numberOfLayers, layerNormEps, vocabularySize, bosToken, eosTokens, activationFunction, ropeFreqsTheta, ropeScalingFactor, classifcationLabels, headSize, finalLogitSoftCapping, attnLogitSoftCapping, residualMultiplier, attentionMultiplier, embeddingMultiplier, logitMultiplier, null, null, null);
     }
 
     public void setDistributedContext(DistributedContext dctx) {

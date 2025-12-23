@@ -161,7 +161,16 @@ public class TransformerBlock {
         KvBufferCache.KvBuffer kvBuffer,
         Optional<Consumer<List<AbstractTensor>>> tensorReducer
     ) {
+        AbstractTensor residual = applyAttention(embedding, position, kvBuffer, tensorReducer);
+        return applyFeedForward(residual, tensorReducer);
+    }
 
+    protected AbstractTensor applyAttention(
+        AbstractTensor embedding,
+        int position,
+        KvBufferCache.KvBuffer kvBuffer,
+        Optional<Consumer<List<AbstractTensor>>> tensorReducer
+    ) {
         debug("input_emb", embedding, layerIndex);
 
         AbstractTensor lnemb = preAttentionNorm.map(ln -> ln.forward(embedding)).orElse(embedding);
@@ -184,6 +193,17 @@ public class TransformerBlock {
         }
         TensorOperationsProvider.get().accumulate(lnattn, embedding, 0, model.c.embeddingLength);
 
+        // Clean up intermediate tensors
+        if (lnemb != embedding) lnemb.close();
+        if (lnattn != postAttention) postAttention.close();
+
+        return lnattn;
+    }
+
+    protected AbstractTensor applyFeedForward(
+        AbstractTensor lnattn,
+        Optional<Consumer<List<AbstractTensor>>> tensorReducer
+    ) {
         AbstractTensor lnpreFF = preFFNorm.map(ln -> ln.forward(lnattn)).orElse(lnattn);
 
         debug("pre_ff_norm", lnpreFF, layerIndex);
@@ -205,9 +225,6 @@ public class TransformerBlock {
         debug("post_ff_res", lnpostFF, layerIndex);
 
         // Release any tmp buffers (embedding is released by caller)
-        if (lnemb != embedding) lnemb.close();
-        if (lnattn != postAttention) lnattn.close();
-        else postAttention.close();
         if (lnpreFF != lnattn) lnpreFF.close();
         else lnattn.close();
 

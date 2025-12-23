@@ -52,6 +52,7 @@ public class JlamaCli implements Runnable {
         cli.addSubcommand("list", new ListCommand());
         cli.addSubcommand("download", new DownloadCommand());
         cli.addSubcommand("quantize", new QuantizeCommand());
+        cli.addSubcommand("transcribe", new TranscribeCommand());
         cli.addSubcommand("cluster-coordinator", new ClusterCoordinatorCommand());
         cli.addSubcommand("cluster-worker", new ClusterWorkerCommand());
         cli.addSubcommand("rm", new RemoveCommand());
@@ -70,7 +71,7 @@ public class JlamaCli implements Runnable {
     /** Shamelessly stolen from jbang */
     public static CommandGroupRenderer getCommandRenderer() {
         Map<String, List<String>> sections = new LinkedHashMap<>();
-        sections.put("Inference", asList("chat", "restapi", "complete"));
+        sections.put("Inference", asList("chat", "restapi", "complete", "transcribe"));
         sections.put("Distributed Inference", asList("cluster-coordinator", "cluster-worker"));
         sections.put("Other", asList("download", "list", "quantize", "rm", "version"));
         CommandGroupRenderer renderer = new CommandGroupRenderer(sections);
