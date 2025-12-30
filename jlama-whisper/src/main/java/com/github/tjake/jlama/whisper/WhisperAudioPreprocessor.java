@@ -1,18 +1,3 @@
-/*
- * Copyright 2024 T Jake Luciani
- *
- * The Jlama Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
 package com.github.tjake.jlama.whisper;
 
 import com.jlibrosa.audio.JLibrosa;
@@ -23,27 +8,24 @@ import java.io.IOException;
 /**
  * Audio preprocessor for Whisper models.
  * Converts audio files to mel spectrograms.
+ *
+ * Uses JLibrosa for audio loading/resampling and custom Vector API
+ * implementation for mel spectrogram generation matching Whisper's specs.
  */
 public class WhisperAudioPreprocessor {
 
-    // Whisper expects 16kHz audio
+    // Whisper expects 16kHz mono audio
     private static final int SAMPLE_RATE = 16000;
 
-    // Whisper uses n_fft=400, but JLibrosa requires power of 2
-    // Using 512 as a compatible approximation
-    private static final int N_FFT = 512;
+    // Default mel bins (80 for most models, 128 for large-v3)
+    private static final int DEFAULT_N_MELS = 80;
 
-    // Hop length for 10ms steps at 16kHz
-    private static final int HOP_LENGTH = 160;
-
-    // Number of mel filterbanks
-    private static final int N_MELS = 80;
-
-    // Maximum audio length in samples (30 seconds)
-    private static final int MAX_AUDIO_LENGTH = SAMPLE_RATE * 30;
+    // Cached mel spectrogram generator
+    private static volatile WhisperMelSpectrogram melGenerator80;
+    private static volatile WhisperMelSpectrogram melGenerator128;
 
     /**
-     * Load audio file and convert to mel spectrogram.
+     * Load audio file and convert to mel spectrogram using 80 mel bins.
      *
      * @param filePath Path to audio file (WAV format)
      * @return Mel spectrogram of shape [n_mels, time_frames]
@@ -51,45 +33,82 @@ public class WhisperAudioPreprocessor {
     public static float[][] fromFile(String filePath) throws UnsupportedAudioFileException, IOException,
             com.jlibrosa.audio.wavFile.WavFileException,
             com.jlibrosa.audio.exception.FileFormatNotSupportedException {
-
-        JLibrosa jLibrosa = new JLibrosa();
-
-        // Load audio and resample to 16kHz
-        float[] audioFloats = jLibrosa.loadAndRead(filePath, SAMPLE_RATE, -1);
-
-        // Pad or truncate to 30 seconds (Whisper's expected input)
-        audioFloats = padOrTruncate(audioFloats, MAX_AUDIO_LENGTH);
-
-        // Generate mel spectrogram
-        float[][] melSpectrogram = jLibrosa.generateMelSpectroGram(audioFloats, SAMPLE_RATE, N_FFT, N_MELS, HOP_LENGTH);
-
-        // Apply log mel transformation (Whisper uses log mel)
-        for (int i = 0; i < melSpectrogram.length; i++) {
-            for (int j = 0; j < melSpectrogram[i].length; j++) {
-                // Clamp to minimum value and apply log
-                float val = Math.max(melSpectrogram[i][j], 1e-10f);
-                melSpectrogram[i][j] = (float) Math.log10(val);
-            }
-        }
-
-        return melSpectrogram;
+        return fromFile(filePath, DEFAULT_N_MELS);
     }
 
     /**
-     * Pad audio to target length with zeros, or truncate if too long.
+     * Load audio file and convert to mel spectrogram.
+     *
+     * @param filePath Path to audio file (WAV format)
+     * @param nMels Number of mel bins (80 or 128)
+     * @return Mel spectrogram of shape [n_mels, time_frames]
      */
-    private static float[] padOrTruncate(float[] audio, int targetLength) {
-        if (audio.length >= targetLength) {
-            // Truncate
-            float[] result = new float[targetLength];
-            System.arraycopy(audio, 0, result, 0, targetLength);
-            return result;
+    public static float[][] fromFile(String filePath, int nMels) throws UnsupportedAudioFileException, IOException,
+            com.jlibrosa.audio.wavFile.WavFileException,
+            com.jlibrosa.audio.exception.FileFormatNotSupportedException {
+
+        // Load and resample audio to 16kHz using JLibrosa
+        JLibrosa jLibrosa = new JLibrosa();
+        float[] audio = jLibrosa.loadAndRead(filePath, SAMPLE_RATE, -1);
+
+        return fromSamples(audio, nMels);
+    }
+
+    /**
+     * Convert raw audio samples to mel spectrogram.
+     *
+     * @param audio Audio samples at 16kHz
+     * @param nMels Number of mel bins (80 or 128)
+     * @return Mel spectrogram of shape [n_mels, time_frames]
+     */
+    public static float[][] fromSamples(float[] audio, int nMels) {
+        WhisperMelSpectrogram generator = getMelGenerator(nMels);
+        return generator.compute(audio);
+    }
+
+    /**
+     * Convert raw audio samples to mel spectrogram using 80 mel bins.
+     *
+     * @param audio Audio samples at 16kHz
+     * @return Mel spectrogram of shape [80, time_frames]
+     */
+    public static float[][] fromSamples(float[] audio) {
+        return fromSamples(audio, DEFAULT_N_MELS);
+    }
+
+    /**
+     * Get or create mel spectrogram generator for given mel bins.
+     * Uses double-checked locking for thread-safe lazy initialization.
+     */
+    private static WhisperMelSpectrogram getMelGenerator(int nMels) {
+        if (nMels == 80) {
+            if (melGenerator80 == null) {
+                synchronized (WhisperAudioPreprocessor.class) {
+                    if (melGenerator80 == null) {
+                        melGenerator80 = new WhisperMelSpectrogram(80);
+                    }
+                }
+            }
+            return melGenerator80;
+        } else if (nMels == 128) {
+            if (melGenerator128 == null) {
+                synchronized (WhisperAudioPreprocessor.class) {
+                    if (melGenerator128 == null) {
+                        melGenerator128 = new WhisperMelSpectrogram(128);
+                    }
+                }
+            }
+            return melGenerator128;
         } else {
-            // Pad with zeros
-            float[] result = new float[targetLength];
-            System.arraycopy(audio, 0, result, 0, audio.length);
-            // Rest is already 0.0f
-            return result;
+            // For non-standard mel counts, create new instance
+            return new WhisperMelSpectrogram(nMels);
         }
+    }
+
+    /**
+     * Get sample rate expected by Whisper.
+     */
+    public static int getSampleRate() {
+        return SAMPLE_RATE;
     }
 }
